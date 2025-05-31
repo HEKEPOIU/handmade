@@ -1,18 +1,29 @@
-#include <cstdint>
+
+// windows.h fucking need to be included befoure xinput.h
+// https://stackoverflow.com/questions/4845198/fatal-error-no-target-architecture-in-visual-studio
+// There are a number of child header files that are automatically included with
+// windows.h. Many of these files cannot simply be included by themselves (they
+// are not self-contained), because of dependencies.
+
+// clang-format off
 #include <windows.h>
+// clang-format on
+#include "xinput.h"
+#include <cstdint>
 
 #define internal static
 #define local_persist static
 #define global_persist static
 
 struct win32_offscreen_buffer {
+  // Buffer pixel size always be 32 bit, little endian.
   BITMAPINFO Info;
   void *Memory;
   int Width;
   int Height;
   int Pitch;
-  int BytePerPixel;
 };
+
 global_persist bool GlobalRunning;
 global_persist win32_offscreen_buffer GlobalBackbuffer;
 
@@ -21,7 +32,37 @@ struct win32_window_dimension {
   int Height;
 };
 
-win32_window_dimension Win32GetWindowDimension(HWND Window) {
+#define X_INPUT_GET_STATE(name)                                                \
+  DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
+typedef X_INPUT_GET_STATE(x_input_get_state);
+X_INPUT_GET_STATE(XInputGetStateStub) { return 0; }
+
+#define X_INPUT_SET_STATE(name)                                                \
+  DWORD WINAPI name(DWORD dwUserIndex, XINPUT_VIBRATION *pVibration)
+
+typedef X_INPUT_SET_STATE(x_input_set_state);
+X_INPUT_SET_STATE(XInputSetStateStub) { return 0; }
+
+global_persist x_input_get_state *XInputGetState_ = XInputGetStateStub;
+global_persist x_input_set_state *XInputSetState_ = XInputSetStateStub;
+
+// Self loading XInputGetState and XInputSetState,
+// because if we just link xinput.lib, for some one don't have xinput.h,
+// it will fail when open game, but the game are note depend on gamepad.
+#define XInputGetState XInputGetState_
+#define XInputSetState XInputSetState_
+
+internal void Win32LoadXInput() {
+  HMODULE XInputModule = LoadLibrary("xinput1_3.dll");
+  if (XInputModule) {
+    XInputGetState_ =
+        (x_input_get_state *)GetProcAddress(XInputModule, "XInputGetState");
+    XInputSetState_ =
+        (x_input_set_state *)GetProcAddress(XInputModule, "XInputSetState");
+  }
+}
+
+internal win32_window_dimension Win32GetWindowDimension(HWND Window) {
   RECT ClientRect;
   GetClientRect(Window, &ClientRect);
   LONG Width = ClientRect.right - ClientRect.left;
@@ -29,13 +70,13 @@ win32_window_dimension Win32GetWindowDimension(HWND Window) {
   return {Width, Height};
 }
 
-internal void RenderWeirdGradient(win32_offscreen_buffer buffer,
+internal void RenderWeirdGradient(win32_offscreen_buffer *buffer,
                                   int BlueOffset,
                                   int GreenOffset) {
-  uint8_t *Row = (uint8_t *)buffer.Memory;
-  for (int Y = 0; Y < buffer.Height; ++Y) {
+  uint8_t *Row = (uint8_t *)buffer->Memory;
+  for (int Y = 0; Y < buffer->Height; ++Y) {
     uint32_t *Pixel = (uint32_t *)Row;
-    for (int X = 0; X < buffer.Width; ++X) {
+    for (int X = 0; X < buffer->Width; ++X) {
       /*
         LITTLE ENDIAN ARCHITECTURE
         Pixel in memory: RR GG BB xx
@@ -52,7 +93,7 @@ internal void RenderWeirdGradient(win32_offscreen_buffer buffer,
       *Pixel++ = ((Green << 8) | Blue);
     }
     // Pitch -> 4 * 8 * Width  -> 32 BitCount from top
-    Row += buffer.Pitch;
+    Row += buffer->Pitch;
   }
 }
 
@@ -62,9 +103,10 @@ Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int Width, int Height) {
   if (buffer->Memory) {
     VirtualFree(buffer->Memory, 0, MEM_RELEASE);
   }
+
+  int BytePerPixel = 4;
   buffer->Width = Width;
   buffer->Height = Height;
-  buffer->BytePerPixel = 4;
 
   buffer->Info.bmiHeader.biSize = sizeof(buffer->Info.bmiHeader);
   buffer->Info.bmiHeader.biWidth = buffer->Width;
@@ -79,28 +121,28 @@ Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int Width, int Height) {
   buffer->Memory =
       VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
 
-  buffer->Pitch = Width * buffer->BytePerPixel;
+  buffer->Pitch = Width * BytePerPixel;
 }
 
-internal void Win32DisplayBufferInWindow(HDC DeviceContext,
+internal void Win32DisplayBufferInWindow(win32_offscreen_buffer *buffer,
+                                         HDC DeviceContext,
                                          int WindowWidth,
-                                         int WindowHeight,
-                                         win32_offscreen_buffer buffer) {
+                                         int WindowHeight) {
   // clang-format off
   StretchDIBits(DeviceContext,
                 0, 0, WindowWidth, WindowHeight,
-                0, 0, buffer.Width, buffer.Height,
-                buffer.Memory,
-                &buffer.Info,
+                0, 0, buffer->Width, buffer->Height,
+                buffer->Memory,
+                &buffer->Info,
                 DIB_RGB_COLORS,
                 SRCCOPY);
   // clang-format on
 };
 
-LRESULT WINAPI Win32MainWindowsCallback(HWND Window,
-                                        UINT Message,
-                                        WPARAM WParam,
-                                        LPARAM LParam) {
+internal LRESULT WINAPI Win32MainWindowsCallback(HWND Window,
+                                                 UINT Message,
+                                                 WPARAM WParam,
+                                                 LPARAM LParam) {
   LRESULT Result = 0;
   switch (Message) {
   case WM_SIZE: {
@@ -113,18 +155,56 @@ LRESULT WINAPI Win32MainWindowsCallback(HWND Window,
     GlobalRunning = false;
   } break;
 
+  case WM_SYSKEYDOWN:
+  case WM_SYSKEYUP:
+  case WM_KEYDOWN:
+  case WM_KEYUP: {
+    uint32_t VkCode = WParam;
+
+    WORD KeyFlags = HIWORD(LParam);
+    // previous key state flag.
+    const bool WasDown = ((KeyFlags & KF_REPEAT) == KF_REPEAT);
+
+    // transition state flag.
+    const bool IsDown = ((KeyFlags & KF_UP) == 0);
+    if (WasDown != IsDown) {
+      if (VkCode == 'W') {
+      } else if (VkCode == 'S') {
+      } else if (VkCode == 'A') {
+      } else if (VkCode == 'D') {
+      } else if (VkCode == 'Q') {
+      } else if (VkCode == 'E') {
+      } else if (VkCode == VK_UP) {
+      } else if (VkCode == VK_DOWN) {
+      } else if (VkCode == VK_LEFT) {
+      } else if (VkCode == VK_RIGHT) {
+      } else if (VkCode == VK_ESCAPE) {
+        if (WasDown) {
+          OutputDebugString("WasDown");
+        }
+        if (IsDown) {
+          OutputDebugString("IsDown");
+        }
+        OutputDebugString("\n");
+      } else if (VkCode == VK_SPACE) {
+      }
+    }
+  } break;
+
   case WM_ACTIVATEAPP: {
   } break;
   case WM_PAINT: {
     PAINTSTRUCT Paint;
     HDC DeviceContext = BeginPaint(Window, &Paint);
-    LONG X = Paint.rcPaint.left;
-    LONG Y = Paint.rcPaint.top;
-    LONG Width = Paint.rcPaint.right - Paint.rcPaint.left;
-    LONG Height = Paint.rcPaint.bottom - Paint.rcPaint.top;
+    // Paint.rcPaint is the area that needs to be repainted.(dirty area)
+    // but we always want to repaint the whole window.
+    // LONG X = Paint.rcPaint.left;
+    // LONG Y = Paint.rcPaint.top;
+    // LONG Width = Paint.rcPaint.right - Paint.rcPaint.left;
+    // LONG Height = Paint.rcPaint.bottom - Paint.rcPaint.top;
     win32_window_dimension Dimension = Win32GetWindowDimension(Window);
     Win32DisplayBufferInWindow(
-        DeviceContext, Dimension.Width, Dimension.Height, GlobalBackbuffer);
+        &GlobalBackbuffer, DeviceContext, Dimension.Width, Dimension.Height);
     EndPaint(Window, &Paint);
   } break;
   default: {
@@ -138,7 +218,7 @@ int WINAPI WinMain(HINSTANCE Instance,
                    HINSTANCE PrevInstance,
                    LPSTR CommandLine,
                    int ShowCode) {
-
+  Win32LoadXInput();
   WNDCLASS WindowsClass{};
 
   Win32ResizeDIBSection(&GlobalBackbuffer, 1280, 720);
@@ -179,13 +259,53 @@ int WINAPI WinMain(HINSTANCE Instance,
           TranslateMessage(&Message);
           DispatchMessage(&Message);
         }
-        RenderWeirdGradient(GlobalBackbuffer, XOffset, YOffset);
+        for (DWORD ControllerIndex = 0; ControllerIndex < XUSER_MAX_COUNT;
+             ++ControllerIndex) {
+          XINPUT_STATE ControllerState;
+          if (XInputGetState(ControllerIndex, &ControllerState) ==
+              ERROR_SUCCESS) {
+            // ControllerState.dwPacketNumber used to detect if the controller
+            // state changed, it will be incremented by 1 every time the state
+            // is updated.
+            // And We cant use this to check is the pulling speed is fast enough
+            XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad;
+            bool Up = Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP;
+            bool Down = Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
+            bool Left = Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
+            bool Right = Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
+
+            bool Start = Pad->wButtons & XINPUT_GAMEPAD_START;
+            bool Back = Pad->wButtons & XINPUT_GAMEPAD_BACK;
+
+            bool LeftShoulder = Pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER;
+            bool RightShoulder = Pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER;
+
+            bool ABottom = Pad->wButtons & XINPUT_GAMEPAD_A;
+            bool BBottom = Pad->wButtons & XINPUT_GAMEPAD_B;
+            bool XBottom = Pad->wButtons & XINPUT_GAMEPAD_X;
+            bool YBottom = Pad->wButtons & XINPUT_GAMEPAD_Y;
+
+            int16_t StickX = Pad->sThumbLX;
+            int16_t StickY = Pad->sThumbLY;
+
+            XOffset += StickX >> 10;
+            YOffset += StickY >> 10;
+
+          } else {
+            // NOTE: If ControllerIndex is not connected, we should skip it.
+          }
+        }
+        // XINPUT_VIBRATION Vibration{};
+        // Vibration.wLeftMotorSpeed = 60000;
+        // Vibration.wRightMotorSpeed = 60000;
+        // XInputSetState_(0, &Vibration);
+        RenderWeirdGradient(&GlobalBackbuffer, XOffset, YOffset);
 
         win32_window_dimension Dimension = Win32GetWindowDimension(Window);
-        Win32DisplayBufferInWindow(
-            DeviceContext, Dimension.Width, Dimension.Height, GlobalBackbuffer);
-
-        ++XOffset;
+        Win32DisplayBufferInWindow(&GlobalBackbuffer,
+                                   DeviceContext,
+                                   Dimension.Width,
+                                   Dimension.Height);
       }
     } else {
       // TODO: Logging when failed
