@@ -1,0 +1,20 @@
+# This file is the default clang-format configuration for all my C++ projects.
+# But --fallback-style can't be used with a .clang-format file,
+# so this file used cased are 
+# 1. Put in Project root directory to override the default style.
+# 2. Put in ~ path to let clang-format recursively search for it.
+BasedOnStyle: LLVM
+
+AlignAfterOpenBracket: Align
+
+AllowAllParametersOfDeclarationOnNextLine: false
+BinPackParameters: false 
+BinPackArguments: false                         
+AllowShortFunctionsOnASingleLine: All
+
+IndentWidth: 2       
+UseTab: Never        
+ColumnLimit: 80     
+                     
+PointerAlignment: Right
+BreakBeforeBraces: Attach 
