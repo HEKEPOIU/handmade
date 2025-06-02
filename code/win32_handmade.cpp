@@ -10,10 +10,13 @@
 // clang-format on
 #include "xinput.h"
 #include <cstdint>
+#include <dsound.h>
 
 #define internal static
 #define local_persist static
 #define global_persist static
+
+typedef int32_t bool32_t;
 
 struct win32_offscreen_buffer {
   // Buffer pixel size always be 32 bit, little endian.
@@ -35,13 +38,20 @@ struct win32_window_dimension {
 #define X_INPUT_GET_STATE(name)                                                \
   DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
 typedef X_INPUT_GET_STATE(x_input_get_state);
-X_INPUT_GET_STATE(XInputGetStateStub) { return 0; }
+// in windows api, 0 is success, but we want to return error.
+X_INPUT_GET_STATE(XInputGetStateStub) { return ERROR_DEVICE_NOT_CONNECTED; }
 
 #define X_INPUT_SET_STATE(name)                                                \
   DWORD WINAPI name(DWORD dwUserIndex, XINPUT_VIBRATION *pVibration)
 
 typedef X_INPUT_SET_STATE(x_input_set_state);
-X_INPUT_SET_STATE(XInputSetStateStub) { return 0; }
+X_INPUT_SET_STATE(XInputSetStateStub) { return ERROR_DEVICE_NOT_CONNECTED; }
+
+#define DIRECT_SOUND_CREATE(name)                                              \
+  HRESULT WINAPI name(                                                         \
+      LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter);
+
+typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
 global_persist x_input_get_state *XInputGetState_ = XInputGetStateStub;
 global_persist x_input_set_state *XInputSetState_ = XInputSetStateStub;
@@ -52,13 +62,89 @@ global_persist x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputGetState XInputGetState_
 #define XInputSetState XInputSetState_
 
-internal void Win32LoadXInput() {
-  HMODULE XInputModule = LoadLibrary("xinput1_3.dll");
+internal void Win32LoadXInput(void) {
+  HMODULE XInputModule = LoadLibrary("xinput1_4.dll");
+  if (!XInputModule) { XInputModule = LoadLibrary("xinput1_3.dll"); }
+  // TODO: Logging XInput version
+
   if (XInputModule) {
-    XInputGetState_ =
+    XInputGetState =
         (x_input_get_state *)GetProcAddress(XInputModule, "XInputGetState");
-    XInputSetState_ =
+    if (!XInputGetState) { XInputGetState = XInputGetStateStub; }
+    XInputSetState =
         (x_input_set_state *)GetProcAddress(XInputModule, "XInputSetState");
+    if (!XInputSetState) { XInputGetState = XInputGetStateStub; }
+  } else {
+    // TODO: Logging
+  }
+}
+
+internal void
+Win32InitDSound(HWND Window, int32_t SamplePerSecond, int32_t BufferSize) {
+  HMODULE DSoundModule = LoadLibrary("dsound.dll");
+  if (DSoundModule) {
+    direct_sound_create *DirectSoundCreate =
+        (direct_sound_create *)GetProcAddress(DSoundModule,
+                                              "DirectSoundCreate");
+    // In some how, DirectSound are use oop, it write in C++
+    LPDIRECTSOUND DirectSound;
+    if (DirectSoundCreate && SUCCEEDED(DirectSoundCreate(0, &DirectSound, 0))) {
+      WAVEFORMATEX WaveFormat{
+          .wFormatTag = WAVE_FORMAT_PCM,
+          .nChannels = 2,
+          .nSamplesPerSec = (DWORD)SamplePerSecond,
+          .wBitsPerSample = 16,
+      };
+      WaveFormat.nBlockAlign =
+          (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+      WaveFormat.nAvgBytesPerSec =
+          WaveFormat.nBlockAlign * WaveFormat.nSamplesPerSec;
+
+      if (SUCCEEDED(DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY))) {
+        DSBUFFERDESC BufferDescrption{
+            .dwSize = sizeof(BufferDescrption),
+            .dwFlags = DSBCAPS_PRIMARYBUFFER,
+            .dwBufferBytes = 0,
+        };
+
+        // NOTE: In this place, PrimaryBuffer are only used to set the format.
+        // it is the handle of audio Device.
+        LPDIRECTSOUNDBUFFER PrimaryBuffer;
+        if (SUCCEEDED(DirectSound->CreateSoundBuffer(
+                &BufferDescrption, &PrimaryBuffer, 0))) {
+          auto Error = PrimaryBuffer->SetFormat(&WaveFormat);
+          if (SUCCEEDED(Error)) {
+            OutputDebugString("Create PrimaryBuffer Success\n");
+          } else {
+
+            // TODO : Logging
+          }
+        } else {
+          // TODO : Logging
+        }
+
+      } else {
+        // TODO : Logging
+      }
+      DSBUFFERDESC BufferDescrption{
+          .dwSize = sizeof(BufferDescrption),
+          .dwFlags = 0,
+          .dwBufferBytes = (WORD)BufferSize,
+          .lpwfxFormat = &WaveFormat,
+      };
+
+      // NOTE: And this place, SecondaryBuffer are used to actually play audio.
+      LPDIRECTSOUNDBUFFER SecondaryBuffer;
+      if (SUCCEEDED(DirectSound->CreateSoundBuffer(
+              &BufferDescrption, &SecondaryBuffer, 0))) {
+        OutputDebugString("Create SecondaryBuffer Success\n");
+      } else {
+        // TODO : Logging
+      }
+
+    } else {
+      // TODO : Logging
+    }
   }
 }
 
@@ -100,9 +186,7 @@ internal void RenderWeirdGradient(win32_offscreen_buffer *buffer,
 // DIB: Device Independent Bitmap
 internal void
 Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int Width, int Height) {
-  if (buffer->Memory) {
-    VirtualFree(buffer->Memory, 0, MEM_RELEASE);
-  }
+  if (buffer->Memory) { VirtualFree(buffer->Memory, 0, MEM_RELEASE); }
 
   int BytePerPixel = 4;
   buffer->Width = Width;
@@ -118,8 +202,8 @@ Win32ResizeDIBSection(win32_offscreen_buffer *buffer, int Width, int Height) {
   buffer->Info.bmiHeader.biCompression = BI_RGB;
 
   int BitmapMemorySize = 4 * Width * Height;
-  buffer->Memory =
-      VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+  buffer->Memory = VirtualAlloc(
+      0, BitmapMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
   buffer->Pitch = Width * BytePerPixel;
 }
@@ -162,11 +246,18 @@ internal LRESULT WINAPI Win32MainWindowsCallback(HWND Window,
     uint32_t VkCode = WParam;
 
     WORD KeyFlags = HIWORD(LParam);
+
+    // https://learn.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input#keystroke-message-flags
     // previous key state flag.
     const bool WasDown = ((KeyFlags & KF_REPEAT) == KF_REPEAT);
 
     // transition state flag.
     const bool IsDown = ((KeyFlags & KF_UP) == 0);
+    // We use bool32_t to avoid warning.
+    // because we don't need to compare with other, so we dont need to convert
+    // it to bool.
+    // we only need to know if it 0 or not.
+    const bool32_t AltDown = (KeyFlags & KF_ALTDOWN);
     if (WasDown != IsDown) {
       if (VkCode == 'W') {
       } else if (VkCode == 'S') {
@@ -179,16 +270,14 @@ internal LRESULT WINAPI Win32MainWindowsCallback(HWND Window,
       } else if (VkCode == VK_LEFT) {
       } else if (VkCode == VK_RIGHT) {
       } else if (VkCode == VK_ESCAPE) {
-        if (WasDown) {
-          OutputDebugString("WasDown");
-        }
-        if (IsDown) {
-          OutputDebugString("IsDown");
-        }
+        if (WasDown) { OutputDebugString("WasDown"); }
+        if (IsDown) { OutputDebugString("IsDown"); }
         OutputDebugString("\n");
       } else if (VkCode == VK_SPACE) {
       }
     }
+    if (AltDown && VkCode == VK_F4) { GlobalRunning = false; }
+
   } break;
 
   case WM_ACTIVATEAPP: {
@@ -249,13 +338,13 @@ int WINAPI WinMain(HINSTANCE Instance,
       HDC DeviceContext = GetDC(Window);
       int XOffset = 0;
       int YOffset = 0;
+
+      Win32InitDSound(Window, 48000, 48000 * sizeof(int16_t) * 2);
       GlobalRunning = true;
       while (GlobalRunning) {
         MSG Message;
         while (PeekMessageA(&Message, 0, 0, 0, PM_REMOVE)) {
-          if (Message.message == WM_QUIT) {
-            GlobalRunning = false;
-          }
+          if (Message.message == WM_QUIT) { GlobalRunning = false; }
           TranslateMessage(&Message);
           DispatchMessage(&Message);
         }

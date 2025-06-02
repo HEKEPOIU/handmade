@@ -11,6 +11,8 @@ AllowAllParametersOfDeclarationOnNextLine: false
 BinPackParameters: false 
 BinPackArguments: false                         
 AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortBlocksOnASingleLine: Always
 
 IndentWidth: 2       
 UseTab: Never        
