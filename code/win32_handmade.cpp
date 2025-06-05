@@ -1,5 +1,4 @@
-
-// windows.h fucking need to be included befoure xinput.h
+// windows.h fucking need to be included before xinput.h
 // https://stackoverflow.com/questions/4845198/fatal-error-no-target-architecture-in-visual-studio
 // There are a number of child header files that are automatically included with
 // windows.h. Many of these files cannot simply be included by themselves (they
@@ -52,7 +51,7 @@ X_INPUT_SET_STATE(XInputSetStateStub) { return ERROR_DEVICE_NOT_CONNECTED; }
 
 #define DIRECT_SOUND_CREATE(name)                                              \
   HRESULT WINAPI name(                                                         \
-      LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter);
+      LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
