@@ -1,3 +1,7 @@
+#include "handmade.cpp"
+#include "Constants.hpp"
+
+
 // windows.h fucking need to be included before xinput.h
 // https://stackoverflow.com/questions/4845198/fatal-error-no-target-architecture-in-visual-studio
 // There are a number of child header files that are automatically included with
@@ -6,22 +10,10 @@
 // clang-format off
 #include <windows.h>
 // clang-format on
-#include <cstdio>
 #include "xinput.h"
 #include <cmath>
-#include <cstdint>
 #include <dsound.h>
 
-#define internal static
-#define local_persist static
-#define global_persist static
-
-#define Pi32 3.14159265359f
-
-// some alignment usecase, and more precised control size.
-typedef int32_t bool32_t;
-typedef float real32_t;
-typedef double real64_t;
 
 struct win32_offscreen_buffer {
   // Buffer pixel size always be 32 bit, little endian.
@@ -159,33 +151,6 @@ internal win32_window_dimension Win32GetWindowDimension(HWND Window) {
   LONG Width = ClientRect.right - ClientRect.left;
   LONG Height = ClientRect.bottom - ClientRect.top;
   return {Width, Height};
-}
-
-internal void RenderWeirdGradient(win32_offscreen_buffer *buffer,
-                                  int BlueOffset,
-                                  int GreenOffset) {
-  uint8_t *Row = (uint8_t *)buffer->Memory;
-  for (int Y = 0; Y < buffer->Height; ++Y) {
-    uint32_t *Pixel = (uint32_t *)Row;
-    for (int X = 0; X < buffer->Width; ++X) {
-      /*
-        LITTLE ENDIAN ARCHITECTURE
-        Pixel in memory: RR GG BB xx
-        Pixel in Register 0x xxBBGGRR
-        -- > Load the memory from left to right, fill out the Register form
-        right to left, and windows programmer want Register read like xxRRGGBB.
-        Pixel in memory: BB GG RR xx
-        Pixel in Register: 0x xxRRGGBB
-      */
-      uint8_t Red = 0;
-      uint8_t Green = (uint8_t)(Y + GreenOffset);
-      uint8_t Blue = (uint8_t)(X + BlueOffset);
-
-      *Pixel++ = ((Green << 8) | Blue);
-    }
-    // Pitch -> 4 * 8 * Width  -> 32 BitCount from top
-    Row += buffer->Pitch;
-  }
 }
 
 // DIB: Device Independent Bitmap
@@ -436,7 +401,8 @@ int WINAPI WinMain(HINSTANCE Instance,
 
       LARGE_INTEGER LastCounter;
       QueryPerformanceCounter(&LastCounter);
-      // the RDTSC is an instruction that provides cpu cycle count in currenttime.
+      // the RDTSC is an instruction that provides cpu cycle count in
+      // currenttime.
       uint64_t LastCyclesCount = __rdtsc();
       while (GlobalRunning) {
 
@@ -499,8 +465,14 @@ int WINAPI WinMain(HINSTANCE Instance,
             // NOTE: If ControllerIndex is not connected, we should skip it.
           }
         }
-        // NOTE: Rendering.
-        RenderWeirdGradient(&GlobalBackbuffer, XOffset, YOffset);
+        game_offscreen_buffer Buffer{
+            .Memory = GlobalBackbuffer.Memory,
+            .Width = GlobalBackbuffer.Width,
+            .Height = GlobalBackbuffer.Height,
+            .Pitch = GlobalBackbuffer.Pitch,
+        };
+        GameUpdateAndRender(&Buffer, XOffset, YOffset);
+
         win32_window_dimension Dimension = Win32GetWindowDimension(Window);
         Win32DisplayBufferInWindow(&GlobalBackbuffer,
                                    DeviceContext,
@@ -535,12 +507,16 @@ int WINAPI WinMain(HINSTANCE Instance,
             EndCounter.QuadPart - LastCounter.QuadPart;
         real32_t MSPerFrame =
             (1000.f * CounterElapsedPerFrame) / PerfCountFrequencyPerSecond;
-        real32_t FPS = (real32_t)PerfCountFrequencyPerSecond / CounterElapsedPerFrame;
+        real32_t FPS =
+            (real32_t)PerfCountFrequencyPerSecond / CounterElapsedPerFrame;
         real32_t MCPF = (real32_t)CyclesElapsedPerFrame / (1000 * 1000);
 
+#if 0
         char Buffer[256];
-        sprintf(Buffer, "%.02fms/f, %.02ff/s, %.02fmc/s\n", MSPerFrame, FPS, MCPF);
+        sprintf(
+            Buffer, "%.02fms/f, %.02ff/s, %.02fmc/s\n", MSPerFrame, FPS, MCPF);
         OutputDebugString(Buffer);
+#endif
         LastCounter = EndCounter;
         LastCyclesCount = EndCyclesCount;
       }
