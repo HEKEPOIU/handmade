@@ -6,7 +6,7 @@
 // clang-format off
 #include <windows.h>
 // clang-format on
-
+#include <cstdio>
 #include "xinput.h"
 #include <cmath>
 #include <cstdint>
@@ -370,6 +370,11 @@ int WINAPI WinMain(HINSTANCE Instance,
                    HINSTANCE PrevInstance,
                    LPSTR CommandLine,
                    int ShowCode) {
+  LARGE_INTEGER PerfCountFrequencyResult;
+  QueryPerformanceFrequency(&PerfCountFrequencyResult);
+  // counts per second
+  int64_t PerfCountFrequencyPerSecond = PerfCountFrequencyResult.QuadPart;
+
   Win32LoadXInput();
   WNDCLASS WindowsClass{};
 
@@ -427,9 +432,14 @@ int WINAPI WinMain(HINSTANCE Instance,
                                SoundOutput.BytePerSample);
       GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
       SoundIsPlaying = true;
-
       GlobalRunning = true;
+
+      LARGE_INTEGER LastCounter;
+      QueryPerformanceCounter(&LastCounter);
+      // the RDTSC is an instruction that provides cpu cycle count in currenttime.
+      uint64_t LastCyclesCount = __rdtsc();
       while (GlobalRunning) {
+
         MSG Message;
         // NOTE: HandleWindowMessage, don't need to pass Window handle,
         // it will get all message form this process.
@@ -516,6 +526,23 @@ int WINAPI WinMain(HINSTANCE Instance,
           }
           Win32FillSoundBuffer(&SoundOutput, BytesToLock, BytesToWrite);
         }
+        uint64_t EndCyclesCount = __rdtsc();
+        LARGE_INTEGER EndCounter;
+        QueryPerformanceCounter(&EndCounter);
+
+        uint64_t CyclesElapsedPerFrame = EndCyclesCount - LastCyclesCount;
+        int64_t CounterElapsedPerFrame =
+            EndCounter.QuadPart - LastCounter.QuadPart;
+        real32_t MSPerFrame =
+            (1000.f * CounterElapsedPerFrame) / PerfCountFrequencyPerSecond;
+        real32_t FPS = (real32_t)PerfCountFrequencyPerSecond / CounterElapsedPerFrame;
+        real32_t MCPF = (real32_t)CyclesElapsedPerFrame / (1000 * 1000);
+
+        char Buffer[256];
+        sprintf(Buffer, "%.02fms/f, %.02ff/s, %.02fmc/s\n", MSPerFrame, FPS, MCPF);
+        OutputDebugString(Buffer);
+        LastCounter = EndCounter;
+        LastCyclesCount = EndCyclesCount;
       }
     } else {
       // TODO: Logging when failed
