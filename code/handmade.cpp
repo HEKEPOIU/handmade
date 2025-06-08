@@ -1,8 +1,26 @@
 #include "handmade.hpp"
+#include <cmath>
+
+internal void GameOutputSound(game_sound_output_buffer *SoundBuffer, int32_t ToneHz) {
+
+  local_persist real32_t tSine = 0;
+  int16_t ToneVolume = 1000;
+  int16_t *SamplesOut = SoundBuffer->Samples;
+  int32_t WavePeriod = SoundBuffer->SamplePerSecond / ToneHz;
+
+  for (int32_t SampleIndex = 0; SampleIndex < SoundBuffer->SamplesCount;
+       SampleIndex++) {
+    real32_t SineValue = sinf(tSine);
+    int16_t SampleValue = (int16_t)(SineValue * ToneVolume);
+    *SamplesOut++ = SampleValue;
+    *SamplesOut++ = SampleValue;
+    tSine += 2 * Pi32 * 1.0f / WavePeriod;
+  }
+}
 
 internal void RenderWeirdGradient(game_offscreen_buffer *buffer,
-                         int BlueOffset,
-                         int GreenOffset) {
+                                  int BlueOffset,
+                                  int GreenOffset) {
   uint8_t *Row = (uint8_t *)buffer->Memory;
   for (int Y = 0; Y < buffer->Height; ++Y) {
     uint32_t *Pixel = (uint32_t *)Row;
@@ -28,7 +46,10 @@ internal void RenderWeirdGradient(game_offscreen_buffer *buffer,
 }
 
 internal void GameUpdateAndRender(game_offscreen_buffer *Buffer,
-                         int BlueOffset,
-                         int GreenOffset) {
-  RenderWeirdGradient(Buffer, 0, 0);
+                                  int BlueOffset,
+                                  int GreenOffset,
+                                  game_sound_output_buffer *SoundBuffer,
+                                  int32_t ToneHz) {
+  GameOutputSound(SoundBuffer, ToneHz);
+  RenderWeirdGradient(Buffer, BlueOffset, GreenOffset);
 };
