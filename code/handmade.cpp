@@ -1,7 +1,8 @@
 #include "handmade.hpp"
 #include <cmath>
 
-internal void GameOutputSound(game_sound_output_buffer *SoundBuffer, int32_t ToneHz) {
+internal void GameOutputSound(game_sound_output_buffer *SoundBuffer,
+                              int32_t ToneHz) {
 
   local_persist real32_t tSine = 0;
   int16_t ToneVolume = 1000;
@@ -45,11 +46,25 @@ internal void RenderWeirdGradient(game_offscreen_buffer *buffer,
   }
 }
 
-internal void GameUpdateAndRender(game_offscreen_buffer *Buffer,
-                                  int BlueOffset,
-                                  int GreenOffset,
-                                  game_sound_output_buffer *SoundBuffer,
-                                  int32_t ToneHz) {
+internal void GameUpdateAndRender(game_input *Input,
+                                  game_offscreen_buffer *Buffer,
+                                  game_sound_output_buffer *SoundBuffer) {
+  local_persist int32_t BlueOffset = 0;
+  local_persist int32_t GreenOffset = 0;
+  local_persist int32_t ToneHz = 256;
+  game_controller_input *Input0 = &Input->Controllers[0];
+  if (Input0->IsAnalog){
+    BlueOffset += (int32_t)(4.0f * Input0->EndX);
+    ToneHz = 256 + (int32_t)(128.0f * (Input0->EndY));
+  } else {
+
+  }
+
+  if (Input0->Down.EndedDown){
+    GreenOffset += 1;
+  }
+
+
   GameOutputSound(SoundBuffer, ToneHz);
   RenderWeirdGradient(Buffer, BlueOffset, GreenOffset);
 };
