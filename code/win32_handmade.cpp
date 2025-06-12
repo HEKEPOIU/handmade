@@ -397,6 +397,28 @@ int WINAPI WinMain(HINSTANCE Instance,
                                   SoundOutput.SecondaryBufferSize,
                                   MEM_RESERVE | MEM_COMMIT,
                                   PAGE_READWRITE);
+#if HANDMADE_INTERNAL
+      LPVOID BaseAddress = (LPVOID)Terabytes(2);
+#else
+      LPVOID BaseAddress = 0;
+#endif
+
+      game_memory GameMemory{
+          .PermanentStorageSize = Megabytes(64),
+          .TransientStorageSize = Gigabytes(4),
+          .PermanentStorage = VirtualAlloc(BaseAddress,
+                                           GameMemory.PermanentStorageSize +
+                                               GameMemory.TransientStorageSize,
+                                           MEM_RESERVE | MEM_COMMIT,
+                                           PAGE_READWRITE),
+          .TransientStorage = (uint8_t *)GameMemory.PermanentStorage +
+                              GameMemory.PermanentStorageSize,
+      };
+      if (!GameMemory.PermanentStorage || !Samples ||
+          !GameMemory.TransientStorage) {
+        // TODO: Logging
+        return -1;
+      }
 
       LARGE_INTEGER LastCounter;
       QueryPerformanceCounter(&LastCounter);
@@ -522,7 +544,7 @@ int WINAPI WinMain(HINSTANCE Instance,
             .Height = GlobalBackbuffer.Height,
             .Pitch = GlobalBackbuffer.Pitch,
         };
-        GameUpdateAndRender(NewInput, &Buffer, &SoundBuffer);
+        GameUpdateAndRender(&GameMemory, NewInput, &Buffer, &SoundBuffer);
 
         win32_window_dimension Dimension = Win32GetWindowDimension(Window);
         Win32DisplayBufferInWindow(&GlobalBackbuffer,
