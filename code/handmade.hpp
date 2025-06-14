@@ -14,6 +14,26 @@
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
+inline uint32_t SafeTruncateUInt32(uint64_t Value) {
+  Assert(Value <= UINT32_MAX);
+  return (uint32_t)Value;
+}
+
+// -- Platform layers
+
+#if HANDMADE_INTERNAL
+struct debug_read_file_result {
+  uint32_t ContentSize;
+  void *Contents;
+};
+debug_read_file_result DEBUGPlatformReadEntireFile(const char *FileName);
+void DEBUGPlatformFreeFile(void *Memory);
+bool32_t DEBUGPlatformWriteEntireFile(const char *FileName,
+                                      uint32_t MemorySize,
+                                      void *Memory);
+#endif
+
+// -- Game layers
 struct game_offscreen_buffer {
   void *Memory;
   int Width;

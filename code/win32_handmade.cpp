@@ -14,6 +14,9 @@
 #include <dsound.h>
 #include <malloc.h>
 
+global_persist bool32_t GlobalRunning;
+global_persist win32_offscreen_buffer GlobalBackbuffer;
+global_persist LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
 #define X_INPUT_GET_STATE(name)                                                \
   DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
 typedef X_INPUT_GET_STATE(x_input_get_state);
@@ -34,15 +37,79 @@ typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
 global_persist x_input_get_state *XInputGetState_ = XInputGetStateStub;
 global_persist x_input_set_state *XInputSetState_ = XInputSetStateStub;
-global_persist bool32_t GlobalRunning;
-global_persist win32_offscreen_buffer GlobalBackbuffer;
-global_persist LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
 
 // Self loading XInputGetState and XInputSetState,
 // because if we just link xinput.lib, for some one don't have xinput.h,
 // it will fail when open game, but the game are note depend on gamepad.
 #define XInputGetState XInputGetState_
 #define XInputSetState XInputSetState_
+
+internal debug_read_file_result
+DEBUGPlatformReadEntireFile(const char *FileName) {
+  debug_read_file_result Result{};
+  HANDLE FileHandle = CreateFile(
+      FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+  if (FileHandle != INVALID_HANDLE_VALUE) {
+    LARGE_INTEGER FileSize;
+    if (GetFileSizeEx(FileHandle, &FileSize)) {
+
+      uint32_t FileSize32 = SafeTruncateUInt32(FileSize.QuadPart);
+      // NOTE: VirtualAlloc are used to big trunk of memort,
+      // https://stackoverflow.com/questions/872072/whats-the-differences-between-virtualalloc-and-heapalloc
+      //  HeapAlloc use VirtualAlloc to allocate Big trunk of memory.
+      //  and manage sets up an internal data structure that can track further
+      //  smaller size allocations within the reserved block of virtual memory.
+      Result.Contents =
+          VirtualAlloc(0, FileSize32, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+      if (Result.Contents) {
+
+        DWORD BytesRead;
+        if (ReadFile(FileHandle, Result.Contents, FileSize32, &BytesRead, 0) &&
+            (BytesRead == FileSize32)) {
+            Result.ContentSize = FileSize32;
+        } else {
+          // TODO: Logging
+          DEBUGPlatformFreeFile(Result.Contents);
+          Result.Contents = 0;
+        }
+      } else {
+
+        // TODO: Logging
+      }
+    } else {
+
+      // TODO: Logging
+    }
+    CloseHandle(FileHandle);
+  } else {
+    // TODO: Logging
+  }
+  return Result;
+};
+internal void DEBUGPlatformFreeFile(void *Memory) {
+  VirtualFree(Memory, 0, MEM_RELEASE);
+};
+internal bool32_t DEBUGPlatformWriteEntireFile(const char *FileName,
+                                               uint32_t MemorySize,
+                                               void *Memory) {
+  bool32_t Result = false;
+  HANDLE FileHandle =
+      CreateFile(FileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+  if (FileHandle != INVALID_HANDLE_VALUE) {
+
+    DWORD BytesWritten;
+    if (WriteFile(FileHandle, Memory, MemorySize, &BytesWritten, 0) &&
+        (BytesWritten == MemorySize)) {
+      Result = true;
+    } else {
+      // TODO: Logging
+    }
+    CloseHandle(FileHandle);
+  } else {
+    // TODO: Logging
+  }
+  return Result;
+};
 
 internal void Win32LoadXInput(void) {
   HMODULE XInputModule = LoadLibrary("xinput1_4.dll");

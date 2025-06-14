@@ -53,6 +53,14 @@ internal void GameUpdateAndRender(game_memory *Memory,
   Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
   game_state *GameState = (game_state *)Memory->PermanentStorage;
   if (!Memory->IsInitialized) {
+    const char *FileName = __FILE__;
+    debug_read_file_result File = DEBUGPlatformReadEntireFile(FileName);
+    if (File.Contents) {
+      DEBUGPlatformWriteEntireFile(
+          "D:\\handmade\\data\\test.out", File.ContentSize, File.Contents);
+      DEBUGPlatformFreeFile(File.Contents);
+    }
+
     GameState->ToneHz = 256;
     Memory->IsInitialized = true;
   }
