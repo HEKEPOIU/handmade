@@ -26,9 +26,9 @@ struct debug_read_file_result {
   uint32_t ContentSize;
   void *Contents;
 };
-debug_read_file_result DEBUGPlatformReadEntireFile(const char *FileName);
-void DEBUGPlatformFreeFile(void *Memory);
-bool32_t DEBUGPlatformWriteEntireFile(const char *FileName,
+internal debug_read_file_result DEBUGPlatformReadEntireFile(const char *FileName);
+internal void DEBUGPlatformFreeFile(void *Memory);
+internal bool32_t DEBUGPlatformWriteEntireFile(const char *FileName,
                                       uint32_t MemorySize,
                                       void *Memory);
 #endif

@@ -35,7 +35,6 @@ internal void RenderWeirdGradient(game_offscreen_buffer *buffer,
         Pixel in memory: BB GG RR xx
         Pixel in Register: 0x xxRRGGBB
       */
-      uint8_t Red = 0;
       uint8_t Green = (uint8_t)(Y + GreenOffset);
       uint8_t Blue = (uint8_t)(X + BlueOffset);
 
@@ -50,7 +49,7 @@ internal void GameUpdateAndRender(game_memory *Memory,
                                   game_input *Input,
                                   game_offscreen_buffer *Buffer,
                                   game_sound_output_buffer *SoundBuffer) {
-  Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
+  Assert(sizeof(game_state) <= (uint64_t)Memory->PermanentStorageSize);
   game_state *GameState = (game_state *)Memory->PermanentStorage;
   if (!Memory->IsInitialized) {
     const char *FileName = __FILE__;
@@ -60,7 +59,7 @@ internal void GameUpdateAndRender(game_memory *Memory,
           "D:\\handmade\\data\\test.out", File.ContentSize, File.Contents);
       DEBUGPlatformFreeFile(File.Contents);
     }
-
+        
     GameState->ToneHz = 256;
     Memory->IsInitialized = true;
   }

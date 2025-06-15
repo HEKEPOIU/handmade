@@ -66,7 +66,7 @@ DEBUGPlatformReadEntireFile(const char *FileName) {
         DWORD BytesRead;
         if (ReadFile(FileHandle, Result.Contents, FileSize32, &BytesRead, 0) &&
             (BytesRead == FileSize32)) {
-            Result.ContentSize = FileSize32;
+          Result.ContentSize = FileSize32;
         } else {
           // TODO: Logging
           DEBUGPlatformFreeFile(Result.Contents);
@@ -266,40 +266,7 @@ internal LRESULT WINAPI Win32MainWindowsCallback(HWND Window,
   case WM_SYSKEYUP:
   case WM_KEYDOWN:
   case WM_KEYUP: {
-    uint32_t VkCode = WParam;
-
-    WORD KeyFlags = HIWORD(LParam);
-
-    // https://learn.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input#keystroke-message-flags
-    // previous key state flag.
-    const bool32_t WasDown = ((KeyFlags & KF_REPEAT) == KF_REPEAT);
-
-    // transition state flag.
-    const bool32_t IsDown = ((KeyFlags & KF_UP) == 0);
-    // We use bool32_t to avoid warning.
-    // because we don't need to compare with other, so we dont need to convert
-    // it to bool.
-    // we only need to know if it 0 or not.
-    const bool32_t AltDown = (KeyFlags & KF_ALTDOWN);
-    if (WasDown != IsDown) {
-      if (VkCode == 'W') {
-      } else if (VkCode == 'S') {
-      } else if (VkCode == 'A') {
-      } else if (VkCode == 'D') {
-      } else if (VkCode == 'Q') {
-      } else if (VkCode == 'E') {
-      } else if (VkCode == VK_UP) {
-      } else if (VkCode == VK_DOWN) {
-      } else if (VkCode == VK_LEFT) {
-      } else if (VkCode == VK_RIGHT) {
-      } else if (VkCode == VK_ESCAPE) {
-        if (WasDown) { OutputDebugString("WasDown"); }
-        if (IsDown) { OutputDebugString("IsDown"); }
-        OutputDebugString("\n");
-      } else if (VkCode == VK_SPACE) {
-      }
-    }
-    if (AltDown && VkCode == VK_F4) { GlobalRunning = false; }
+    Assert(!"Keyboard Input came in through a non-dispatch message");
 
   } break;
 
@@ -400,6 +367,77 @@ internal void Win32ProcessXInputDigitalButton(DWORD XInputBottonState,
       (OldState->EndedDown != NewState->EndedDown) ? 1 : 0;
 }
 
+internal void Win32ProcessKeyboradMessage(game_botton_state *NewState,
+                                          bool32_t IsDown) {
+  NewState->EndedDown = IsDown;
+  ++NewState->HalfTransition;
+}
+internal void Win32MessageLoop(game_controller_input *KeyboardController) {
+  MSG Message;
+  while (PeekMessageA(&Message, 0, 0, 0, PM_REMOVE)) {
+    switch (Message.message) {
+
+    case WM_QUIT: {
+      GlobalRunning = false;
+      break;
+    }
+    case WM_SYSKEYDOWN:
+    case WM_SYSKEYUP:
+    case WM_KEYDOWN:
+    case WM_KEYUP: {
+      uint32_t VkCode = (uint32_t)Message.wParam;
+
+      WORD KeyFlags = HIWORD(Message.lParam);
+
+      // https://learn.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input#keystroke-message-flags
+      // previous key state flag.
+      const bool32_t WasDown = ((KeyFlags & KF_REPEAT) == KF_REPEAT);
+
+      // transition state flag.
+      const bool32_t IsDown = ((KeyFlags & KF_UP) == 0);
+      // We use bool32_t to avoid warning.
+      // because we don't need to compare with other, so we dont need to
+      // convert it to bool. we only need to know if it 0 or not.
+      const bool32_t AltDown = (KeyFlags & KF_ALTDOWN);
+      if (WasDown != IsDown) { // Botton Down
+        if (VkCode == 'W') {
+        } else if (VkCode == 'S') {
+        } else if (VkCode == 'A') {
+        } else if (VkCode == 'D') {
+        } else if (VkCode == 'Q') {
+          Win32ProcessKeyboradMessage(&KeyboardController->LeftShoulder,
+                                      IsDown);
+        } else if (VkCode == 'E') {
+          Win32ProcessKeyboradMessage(&KeyboardController->RightShoulder,
+                                      IsDown);
+        } else if (VkCode == VK_UP) {
+          Win32ProcessKeyboradMessage(&KeyboardController->Up, IsDown);
+        } else if (VkCode == VK_DOWN) {
+          Win32ProcessKeyboradMessage(&KeyboardController->Down, IsDown);
+        } else if (VkCode == VK_LEFT) {
+          Win32ProcessKeyboradMessage(&KeyboardController->Left, IsDown);
+        } else if (VkCode == VK_RIGHT) {
+          Win32ProcessKeyboradMessage(&KeyboardController->Right, IsDown);
+        } else if (VkCode == VK_ESCAPE) {
+          GlobalRunning = false;
+        } else if (VkCode == VK_SPACE) {
+        }
+      }
+      if (AltDown && VkCode == VK_F4) { GlobalRunning = false; }
+
+      break;
+    }
+    default: {
+      TranslateMessage(&Message);
+      // NOTE: It will dispatch to Upper Registered Windows Message
+      // Handler.
+      DispatchMessage(&Message);
+      break;
+    }
+    }
+  }
+}
+
 int WINAPI WinMain(HINSTANCE Instance,
                    HINSTANCE PrevInstance,
                    LPSTR CommandLine,
@@ -451,12 +489,10 @@ int WINAPI WinMain(HINSTANCE Instance,
           SoundOutput.SamplePerSecond * SoundOutput.BytePerSample;
       SoundOutput.LatencySampleCount = SoundOutput.SamplePerSecond / 15;
 
-      bool32_t SoundIsPlaying = false;
       Win32InitDSound(
           Window, SoundOutput.SamplePerSecond, SoundOutput.SecondaryBufferSize);
       Win32ClearBuffer(&SoundOutput);
       GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
-      SoundIsPlaying = true;
       GlobalRunning = true;
 
       int16_t *Samples =
@@ -472,12 +508,13 @@ int WINAPI WinMain(HINSTANCE Instance,
 
       game_memory GameMemory{
           .PermanentStorageSize = Megabytes(64),
-          .TransientStorageSize = Gigabytes(4),
-          .PermanentStorage = VirtualAlloc(BaseAddress,
-                                           GameMemory.PermanentStorageSize +
-                                               GameMemory.TransientStorageSize,
-                                           MEM_RESERVE | MEM_COMMIT,
-                                           PAGE_READWRITE),
+          .TransientStorageSize = Gigabytes(1),
+          .PermanentStorage =
+              VirtualAlloc(BaseAddress,
+                           (size_t)(GameMemory.PermanentStorageSize +
+                                    GameMemory.TransientStorageSize),
+                           MEM_RESERVE | MEM_COMMIT,
+                           PAGE_READWRITE),
           .TransientStorage = (uint8_t *)GameMemory.PermanentStorage +
                               GameMemory.PermanentStorageSize,
       };
@@ -496,18 +533,16 @@ int WINAPI WinMain(HINSTANCE Instance,
       game_input *OldInput = &Input[0];
       game_input *NewInput = &Input[1];
       while (GlobalRunning) {
-        MSG Message;
+
+        game_controller_input *KeyboardController = &NewInput->Controllers[0];
+        game_controller_input ZeroController{};
+        *KeyboardController = ZeroController;
+        Win32MessageLoop(KeyboardController);
 
         // NOTE: HandleWindowMessage, don't need to pass Window handle,
         // it will get all message form this process.
-        while (PeekMessageA(&Message, 0, 0, 0, PM_REMOVE)) {
-          if (Message.message == WM_QUIT) { GlobalRunning = false; }
-          TranslateMessage(&Message);
-          // NOTE: It will dispatch to Upper Registered Windows Message Handler.
-          DispatchMessage(&Message);
-        }
 
-        int32_t MaxControllerCount = XUSER_MAX_COUNT;
+        DWORD MaxControllerCount = XUSER_MAX_COUNT;
         if (MaxControllerCount > ArrayCount(NewInput->Controllers)) {
           MaxControllerCount = ArrayCount(NewInput->Controllers);
         }
@@ -523,7 +558,8 @@ int WINAPI WinMain(HINSTANCE Instance,
             // ControllerState.dwPacketNumber used to detect if the controller
             // state changed, it will be incremented by 1 every time the state
             // is updated.
-            // And We cant use this to check is the pulling speed is fast enough
+            // And We cant use this to check is the pulling speed is fast
+            // enough
             XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad;
             // bool32_t Up = Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP;
             // bool32_t Down = Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
@@ -577,8 +613,8 @@ int WINAPI WinMain(HINSTANCE Instance,
           }
         }
 
-        DWORD BytesToWrite;
-        DWORD BytesToLock;
+        DWORD BytesToWrite = 0;
+        DWORD BytesToLock = 0;
         DWORD TargetCursor;
         DWORD PlayCursor;
         DWORD WriteCursor;
