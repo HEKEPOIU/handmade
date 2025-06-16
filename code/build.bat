@@ -1,5 +1,10 @@
 @echo off
 
+
+set CommonCompilerFlags=/MT /nologo /EHa- /GR- /Gm- /Od /Oi /WX /W4 /wd4201 /wd4100 /wd4189^
+          -DHANDMADE_SLOW=1 -DHANDMADE_INTERNAL=1 -DHANDMADE_WIN32=1 /std:c++20 /Z7 /FC /Fm
+set CommonLinkerFlags= /OPT:REF User32.lib Gdi32.lib 
+
 IF NOT EXIST ..\build mkdir ..\build
 pushd ..\build
 :: '-' means disable previous option
@@ -26,12 +31,8 @@ pushd ..\build
 :: OPT:REF = Remove unused function or data,
 ::           other have OPT:NOREF Don't remove unused function or data.
 
-cl /MT /nologo /EHa- /GR- /Gm- /Od /Oi /WX /W4 /wd4201 /wd4100 /wd4189^
-    -DHANDMADE_SLOW=1 -DHANDMADE_INTERNAL=1 -DHANDMADE_WIN32=1 ^
-    /std:c++20 /Z7 /FC /Fm^
-    "..\code\win32_handmade.cpp"^
-    /link /OPT:REF^
-    User32.lib Gdi32.lib 
+cl %CommonCompilerFlags% "..\code\win32_handmade.cpp" /link %CommonLinkerFlags%
+
 if errorlevel 1 (
     echo [ERROR] Compilation failed.
     popd

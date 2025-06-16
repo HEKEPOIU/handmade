@@ -26,11 +26,12 @@ struct debug_read_file_result {
   uint32_t ContentSize;
   void *Contents;
 };
-internal debug_read_file_result DEBUGPlatformReadEntireFile(const char *FileName);
+internal debug_read_file_result
+DEBUGPlatformReadEntireFile(const char *FileName);
 internal void DEBUGPlatformFreeFile(void *Memory);
 internal bool32_t DEBUGPlatformWriteEntireFile(const char *FileName,
-                                      uint32_t MemorySize,
-                                      void *Memory);
+                                               uint32_t MemorySize,
+                                               void *Memory);
 #endif
 
 // -- Game layers
@@ -52,33 +53,41 @@ struct game_botton_state {
 };
 
 struct game_controller_input {
+  bool32_t IsConnected;
   bool32_t IsAnalog;
-  real32_t StartX;
-  real32_t StartY;
-
-  real32_t MinX;
-  real32_t MinY;
-  real32_t MaxX;
-  real32_t MaxY;
-
-  real32_t EndX;
-  real32_t EndY;
+  real32_t StickAverageX;
+  real32_t StickAverageY;
   union {
-    game_botton_state Botton[6];
+    game_botton_state Bottons[12];
     struct {
-      game_botton_state Up;
-      game_botton_state Down;
-      game_botton_state Left;
-      game_botton_state Right;
+      game_botton_state MoveUp;
+      game_botton_state MoveDown;
+      game_botton_state MoveLeft;
+      game_botton_state MoveRight;
+      game_botton_state ActionUp;
+      game_botton_state ActionDown;
+      game_botton_state ActionLeft;
+      game_botton_state ActionRight;
       game_botton_state LeftShoulder;
       game_botton_state RightShoulder;
+      game_botton_state Back;
+      game_botton_state Start;
+
+
+      // -- NOTE: This is a terminator, it is Checked by Assert.
+      game_botton_state Terminator;
     };
   };
 };
 
 struct game_input {
-  game_controller_input Controllers[4];
+  game_controller_input Controllers[5];
 };
+
+inline game_controller_input *GetController(game_input *Input, uint32_t Index) {
+  Assert(Index >= 0 && (size_t)Index < ArrayCount(Input->Controllers));
+  return &Input->Controllers[Index];
+}
 
 struct game_state {
   int32_t BlueOffset;
