@@ -3,7 +3,7 @@
 
 set CommonCompilerFlags=/MT /nologo /EHa- /GR- /Gm- /Od /Oi /WX /W4 /wd4201 /wd4100 /wd4189^
           -DHANDMADE_SLOW=1 -DHANDMADE_INTERNAL=1 -DHANDMADE_WIN32=1 /std:c++20 /Z7 /FC /Fm
-set CommonLinkerFlags= /OPT:REF User32.lib Gdi32.lib 
+set CommonLinkerFlags= /OPT:REF User32.lib Gdi32.lib Winmm.lib
 
 IF NOT EXIST ..\build mkdir ..\build
 pushd ..\build
