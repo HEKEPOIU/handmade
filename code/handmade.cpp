@@ -16,6 +16,8 @@ internal void GameOutputSound(game_sound_output_buffer *SoundBuffer,
     *SamplesOut++ = SampleValue;
     *SamplesOut++ = SampleValue;
     tSine += 2 * Pi32 * 1.0f / WavePeriod;
+    // NOTE: Wrap around, if not do so, it will have floating point Precision issue.
+    if (tSine > 2.f * Pi32) { tSine -= 2.f * Pi32; }
   }
 }
 
@@ -47,9 +49,9 @@ internal void RenderWeirdGradient(game_offscreen_buffer *buffer,
 
 internal void GameUpdateAndRender(game_memory *Memory,
                                   game_input *Input,
-                                  game_offscreen_buffer *Buffer,
-                                  game_sound_output_buffer *SoundBuffer) {
-  Assert(&Input->Controllers[0].Terminator - &Input->Controllers[0].Bottons[0] ==
+                                  game_offscreen_buffer *Buffer) {
+  Assert(&Input->Controllers[0].Terminator -
+             &Input->Controllers[0].Bottons[0] ==
          (ArrayCount(Input->Controllers[0].Bottons)));
   Assert(sizeof(game_state) <= (uint64_t)Memory->PermanentStorageSize);
   game_state *GameState = (game_state *)Memory->PermanentStorage;
@@ -78,6 +80,11 @@ internal void GameUpdateAndRender(game_memory *Memory,
     if (Controller->ActionDown.EndedDown) { GameState->GreenOffset += 1; }
   }
 
-  GameOutputSound(SoundBuffer, GameState->ToneHz);
   RenderWeirdGradient(Buffer, GameState->BlueOffset, GameState->GreenOffset);
 };
+
+internal void GameGetSoundSample(game_memory *Memory,
+                                 game_sound_output_buffer *SoundBuffer) {
+  game_state *GameState = (game_state *)Memory->PermanentStorage;
+  GameOutputSound(SoundBuffer, GameState->ToneHz);
+}

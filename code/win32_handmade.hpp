@@ -26,10 +26,17 @@ struct win32_sound_output {
   // the sample contains left and right channel.
   int32_t BytePerSample;
   DWORD SecondaryBufferSize;
+  DWORD SafetyBytes;
   int32_t LatencySampleCount;
 };
 
 struct win32_debug_time_marker {
-  DWORD PlayCursor;
-  DWORD WriteCursor;
+  DWORD OutputPlayCursor;
+  DWORD OutputWriteCursor;
+  DWORD OutputLocation;
+  DWORD OutputByteCount;
+  DWORD ExpectedFlipPlayCursor;
+
+  DWORD FlipPlayCursor;
+  DWORD FlipWriteCursor;
 };

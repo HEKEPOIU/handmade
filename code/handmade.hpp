@@ -73,7 +73,6 @@ struct game_controller_input {
       game_botton_state Back;
       game_botton_state Start;
 
-
       // -- NOTE: This is a terminator, it is Checked by Assert.
       game_botton_state Terminator;
     };
@@ -105,5 +104,6 @@ struct game_memory {
 
 internal void GameUpdateAndRender(game_memory *Memory,
                                   game_input *Input,
-                                  game_offscreen_buffer *Buffer,
-                                  game_sound_output_buffer *SoundBuffer);
+                                  game_offscreen_buffer *Buffer);
+internal void GameGetSoundSample(game_memory *Memory,
+                                 game_sound_output_buffer *SoundBuffer);
