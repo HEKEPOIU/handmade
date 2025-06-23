@@ -3,7 +3,7 @@
 // There are a number of child header files that are automatically included with
 // windows.h. Many of these files cannot simply be included by themselves (they
 // are not self-contained), because of dependencies.
-#include "handmade.cpp"
+#include "handmade.hpp"
 
 // clang-format off
 #include <cstdio>
@@ -13,7 +13,6 @@
 #include "win32_handmade.hpp"
 #include "xinput.h"
 #include <dsound.h>
-#include <malloc.h>
 
 global_persist bool32_t GlobalRunning;
 global_persist bool32_t GlobalPause;
@@ -48,8 +47,10 @@ global_persist x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputGetState XInputGetState_
 #define XInputSetState XInputSetState_
 
-internal debug_read_file_result
-DEBUGPlatformReadEntireFile(const char *FileName) {
+void DEBUGPlatformFreeFileMemory(void *Memory) {
+  VirtualFree(Memory, 0, MEM_RELEASE);
+};
+debug_read_file_result DEBUGPlatformReadEntireFile(const char *FileName) {
   debug_read_file_result Result{};
   HANDLE FileHandle = CreateFile(
       FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
@@ -73,7 +74,7 @@ DEBUGPlatformReadEntireFile(const char *FileName) {
           Result.ContentSize = FileSize32;
         } else {
           // TODO: Logging
-          DEBUGPlatformFreeFile(Result.Contents);
+          DEBUGPlatformFreeFileMemory(Result.Contents);
           Result.Contents = 0;
         }
       } else {
@@ -90,12 +91,9 @@ DEBUGPlatformReadEntireFile(const char *FileName) {
   }
   return Result;
 };
-internal void DEBUGPlatformFreeFile(void *Memory) {
-  VirtualFree(Memory, 0, MEM_RELEASE);
-};
-internal bool32_t DEBUGPlatformWriteEntireFile(const char *FileName,
-                                               uint32_t MemorySize,
-                                               void *Memory) {
+bool32_t DEBUGPlatformWriteEntireFile(const char *FileName,
+                                      uint32_t MemorySize,
+                                      void *Memory) {
   bool32_t Result = false;
   HANDLE FileHandle =
       CreateFile(FileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
@@ -114,6 +112,39 @@ internal bool32_t DEBUGPlatformWriteEntireFile(const char *FileName,
   }
   return Result;
 };
+struct win32_game_code {
+  HMODULE GameCodeDLL;
+  game_code GameCode;
+
+  bool32_t IsValid;
+};
+
+internal win32_game_code Win32LoadGameCode() {
+  win32_game_code Result{};
+  CopyFile("handmade.dll", "handmade_tmp.dll", false);
+  Result.GameCodeDLL = LoadLibrary("handmade_tmp.dll");
+  if (Result.GameCodeDLL) {
+    Result.GameCode.UpdateAndRender = (game_update_and_render *)GetProcAddress(
+        Result.GameCodeDLL, "GameUpdateAndRender");
+    Result.GameCode.GetSoundSample = (game_get_sound_sample *)GetProcAddress(
+        Result.GameCodeDLL, "GameGetSoundSample");
+    Result.IsValid =
+        Result.GameCode.UpdateAndRender && Result.GameCode.GetSoundSample;
+  }
+  if (!Result.IsValid) {
+    Result.GameCode.UpdateAndRender = GameUpdateAndRenderStub;
+    Result.GameCode.GetSoundSample = GameGetSoundSampleStub;
+  }
+  return Result;
+}
+internal void Win32UnloadGameCode(win32_game_code *GameCode) {
+  if (GameCode->GameCodeDLL) {
+    FreeLibrary(GameCode->GameCodeDLL);
+  }
+  GameCode->IsValid = false;
+  GameCode->GameCode.UpdateAndRender = GameUpdateAndRenderStub;
+  GameCode->GameCode.GetSoundSample = GameGetSoundSampleStub;
+}
 
 internal void Win32LoadXInput(void) {
   HMODULE XInputModule = LoadLibrary("xinput1_4.dll");
@@ -695,6 +726,9 @@ int WINAPI WinMain(HINSTANCE Instance,
                            PAGE_READWRITE),
           .TransientStorage = (uint8_t *)GameMemory.PermanentStorage +
                               GameMemory.PermanentStorageSize,
+          .DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile,
+          .DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory,
+          .DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile,
       };
       if (!GameMemory.PermanentStorage || !Samples ||
           !GameMemory.TransientStorage) {
@@ -717,8 +751,17 @@ int WINAPI WinMain(HINSTANCE Instance,
       bool32_t SoundIsValid = false;
       // the RDTSC is an instruction that provides cpu cycle count in
       // currenttime.
+      win32_game_code Game = Win32LoadGameCode();
+      uint32_t LoadCounter = 0;
+
       uint64_t LastCyclesCount = __rdtsc();
       while (GlobalRunning) {
+
+        if (LoadCounter++ > 100) {
+          Win32UnloadGameCode(&Game);
+          Game = Win32LoadGameCode();
+          LoadCounter = 0;
+        }
         game_controller_input *OldKeyboardController =
             GetController(OldInput, 0);
         game_controller_input *NewKeyboardController =
@@ -863,7 +906,7 @@ int WINAPI WinMain(HINSTANCE Instance,
             .Height = GlobalBackbuffer.Height,
             .Pitch = GlobalBackbuffer.Pitch,
         };
-        GameUpdateAndRender(&GameMemory, NewInput, &Buffer);
+        Game.GameCode.UpdateAndRender(&GameMemory, NewInput, &Buffer);
 
         DWORD PlayCursor;
         DWORD WriteCursor;
@@ -925,7 +968,7 @@ int WINAPI WinMain(HINSTANCE Instance,
               .SamplesCount = (int32_t)BytesToWrite / SoundOutput.BytePerSample,
               .Samples = Samples,
           };
-          GameGetSoundSample(&GameMemory, &SoundBuffer);
+          Game.GameCode.GetSoundSample(&GameMemory, &SoundBuffer);
 
 #if HANDMADE_INTERNAL
 

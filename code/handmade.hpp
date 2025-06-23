@@ -26,12 +26,18 @@ struct debug_read_file_result {
   uint32_t ContentSize;
   void *Contents;
 };
-internal debug_read_file_result
-DEBUGPlatformReadEntireFile(const char *FileName);
-internal void DEBUGPlatformFreeFile(void *Memory);
-internal bool32_t DEBUGPlatformWriteEntireFile(const char *FileName,
-                                               uint32_t MemorySize,
-                                               void *Memory);
+
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name)                                  \
+  debug_read_file_result name(const char *FileName)
+typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
+
+#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(void *Memory)
+typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
+
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name)                                 \
+  bool32_t name(const char *FileName, uint32_t MemorySize, void *Memory)
+typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
+
 #endif
 
 // -- Game layers
@@ -92,6 +98,8 @@ struct game_state {
   int32_t BlueOffset;
   int32_t GreenOffset;
   int32_t ToneHz;
+
+  real32_t tSine;
 };
 
 struct game_memory {
@@ -100,10 +108,26 @@ struct game_memory {
   int64_t TransientStorageSize;
   void *PermanentStorage; // NOTE: Rquire to be cleared to zero at startup.
   void *TransientStorage;
+  debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
+  debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;
+  debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
 };
 
-internal void GameUpdateAndRender(game_memory *Memory,
-                                  game_input *Input,
-                                  game_offscreen_buffer *Buffer);
-internal void GameGetSoundSample(game_memory *Memory,
-                                 game_sound_output_buffer *SoundBuffer);
+#define GAME_UPDATE_AND_RENDER(name)                                           \
+  void name(                                                                   \
+      game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)
+
+typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
+// in windows api, 0 is success, but we want to return error.
+GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub) {}
+
+#define GAME_GET_SOUND_SAMPLE(name)                                            \
+  void name(game_memory *Memory, game_sound_output_buffer *SoundBuffer)
+
+typedef GAME_GET_SOUND_SAMPLE(game_get_sound_sample);
+GAME_GET_SOUND_SAMPLE(GameGetSoundSampleStub) {}
+
+struct game_code {
+  game_update_and_render *UpdateAndRender;
+  game_get_sound_sample *GetSoundSample;
+};

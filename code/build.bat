@@ -3,7 +3,7 @@
 
 set CommonCompilerFlags=/MT /nologo /EHa- /GR- /Gm- /Od /Oi /WX /W4 /wd4201 /wd4100 /wd4189^
           -DHANDMADE_SLOW=1 -DHANDMADE_INTERNAL=1 -DHANDMADE_WIN32=1 /std:c++20 /Z7 /FC /Fm
-set CommonLinkerFlags= /OPT:REF User32.lib Gdi32.lib Winmm.lib
+set CommonLinkerFlags= /incremental:no /OPT:REF User32.lib Gdi32.lib Winmm.lib
 
 IF NOT EXIST ..\build mkdir ..\build
 pushd ..\build
@@ -30,11 +30,18 @@ pushd ..\build
 :: Fma = Create Map File, other have Fm- Don't Create Map File.
 :: OPT:REF = Remove unused function or data,
 ::           other have OPT:NOREF Don't remove unused function or data.
+:: LD = Create DLL, also pass /DLL to Linker, and it implies /MT.
 
+cl %CommonCompilerFlags% "..\code\handmade.cpp" /LD /link /EXPORT:GameUpdateAndRender /EXPORT:GameGetSoundSample
+if errorlevel 1 (
+    echo [ERROR] Compilation failed when compiling handmade.cpp
+    popd
+    exit /b 1
+)
 cl %CommonCompilerFlags% "..\code\win32_handmade.cpp" /link %CommonLinkerFlags%
 
 if errorlevel 1 (
-    echo [ERROR] Compilation failed.
+    echo [ERROR] Compilation failed when compiling win32_handmade.cpp
     popd
     exit /b 1
 )
