@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Constants.hpp"
+#include "handmade.hpp"
 #include <windows.h>
 
 struct win32_offscreen_buffer {
@@ -39,4 +40,12 @@ struct win32_debug_time_marker {
 
   DWORD FlipPlayCursor;
   DWORD FlipWriteCursor;
+};
+
+struct win32_game_code {
+  HMODULE GameCodeDLL;
+  FILETIME DLLLastWriteTime;
+  game_code GameCode;
+
+  bool32_t IsValid;
 };

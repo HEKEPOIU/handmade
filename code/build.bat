@@ -31,13 +31,17 @@ pushd ..\build
 :: OPT:REF = Remove unused function or data,
 ::           other have OPT:NOREF Don't remove unused function or data.
 :: LD = Create DLL, also pass /DLL to Linker, and it implies /MT.
+del handmade*.pdb
+cl %CommonCompilerFlags% "..\code\handmade.cpp" /LD /link^
+    /incremental:no /PDB:"handmade.%time:~-11,2%_%time:~-8,2%_%time:~-5,2%".pdb^
+    /EXPORT:GameUpdateAndRender /EXPORT:GameGetSoundSample
 
-cl %CommonCompilerFlags% "..\code\handmade.cpp" /LD /link /EXPORT:GameUpdateAndRender /EXPORT:GameGetSoundSample
 if errorlevel 1 (
     echo [ERROR] Compilation failed when compiling handmade.cpp
     popd
     exit /b 1
 )
+
 cl %CommonCompilerFlags% "..\code\win32_handmade.cpp" /link %CommonLinkerFlags%
 
 if errorlevel 1 (

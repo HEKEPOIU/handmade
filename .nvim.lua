@@ -14,11 +14,20 @@ require("overseer").register_template({
                 "on_exit_set_status",
                 { "on_complete_notify" },
                 { "on_output_parse",   problem_matcher = "$msCompile" },
-                { "open_output",       direction = "vertical",        on_start = "never", on_complete = 'failure' },
             },
             args = {},
         }
     end,
 })
 
-vim.keymap.set("n", "<A-m>", ":OverseerRun build<CR>")
+local isBuild = false;
+vim.keymap.set("n", "<A-m>",
+    function()
+        if not isBuild then
+            vim.cmd("OverseerRun build")
+            isBuild = true;
+        else
+            vim.cmd("OverseerQuickAction restart")
+        end
+    end
+)

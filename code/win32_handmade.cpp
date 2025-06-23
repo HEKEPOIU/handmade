@@ -112,17 +112,24 @@ bool32_t DEBUGPlatformWriteEntireFile(const char *FileName,
   }
   return Result;
 };
-struct win32_game_code {
-  HMODULE GameCodeDLL;
-  game_code GameCode;
 
-  bool32_t IsValid;
-};
+inline FILETIME Win32GetLastWriteTime(const char *FileName) {
+  FILETIME Result{};
+  WIN32_FIND_DATA FindData;
+  HANDLE FileHandle = FindFirstFile(FileName, &FindData);
+  if (FileHandle != INVALID_HANDLE_VALUE) {
+    Result = FindData.ftLastWriteTime;
+    FindClose(FileHandle);
+  }
+  return Result;
+}
 
-internal win32_game_code Win32LoadGameCode() {
+internal win32_game_code Win32LoadGameCode(const char *SourceDllName,
+                                           const char *TempDllName) {
   win32_game_code Result{};
-  CopyFile("handmade.dll", "handmade_tmp.dll", false);
-  Result.GameCodeDLL = LoadLibrary("handmade_tmp.dll");
+  Result.DLLLastWriteTime = Win32GetLastWriteTime(SourceDllName);
+  CopyFile(SourceDllName, TempDllName, false);
+  Result.GameCodeDLL = LoadLibrary(TempDllName);
   if (Result.GameCodeDLL) {
     Result.GameCode.UpdateAndRender = (game_update_and_render *)GetProcAddress(
         Result.GameCodeDLL, "GameUpdateAndRender");
@@ -138,9 +145,7 @@ internal win32_game_code Win32LoadGameCode() {
   return Result;
 }
 internal void Win32UnloadGameCode(win32_game_code *GameCode) {
-  if (GameCode->GameCodeDLL) {
-    FreeLibrary(GameCode->GameCodeDLL);
-  }
+  if (GameCode->GameCodeDLL) { FreeLibrary(GameCode->GameCodeDLL); }
   GameCode->IsValid = false;
   GameCode->GameCode.UpdateAndRender = GameUpdateAndRenderStub;
   GameCode->GameCode.GetSoundSample = GameGetSoundSampleStub;
@@ -636,10 +641,55 @@ inline real32_t Win32GetSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End) {
          GlobalPerfCountFrequencyPerSecond;
 }
 
-int WINAPI WinMain(HINSTANCE Instance,
+void CatString(size_t SourceACount,
+               const char *SourceA,
+               size_t SourceBCount,
+               const char *SourceB,
+               size_t DestCount,
+               char *Dest) {
+  Assert(SourceACount + SourceBCount <= DestCount + 1);
+  for (size_t Index = 0; Index < DestCount; ++Index) {
+    if (Index < SourceACount) {
+      Dest[Index] = SourceA[Index];
+    } else if (Index < SourceACount + SourceBCount) {
+      Dest[Index] = SourceB[Index - SourceACount];
+    } else {
+      Dest[Index] = 0;
+      return;
+    }
+  }
+}
+
+int WINAPI WinMain(HINSTANCE Instance, 
                    HINSTANCE PrevInstance,
                    LPSTR CommandLine,
                    int ShowCode) {
+  // NOTE: the MAX_PATH are not actuall MaxPath anymore,
+  //       should use other way to ship in the actual code.
+  char EXEFileName[MAX_PATH];
+  DWORD SizeOfFileName = GetModuleFileNameA(0, EXEFileName, MAX_PATH);
+  char *OnePastLastSlash = EXEFileName;
+  for (char *Current = EXEFileName; *Current; ++Current) {
+    if (*Current == '\\') { OnePastLastSlash = Current + 1; }
+  }
+  char SourceGameCodeDLLFilename[] = "handmade.dll";
+  char SourceGameCodeDLLFullPath[31];
+  CatString(OnePastLastSlash - EXEFileName, //18 this not include '\0'
+            EXEFileName,
+            sizeof(SourceGameCodeDLLFilename), //12 but it include '\0'
+            SourceGameCodeDLLFilename,
+            sizeof(SourceGameCodeDLLFullPath),
+            SourceGameCodeDLLFullPath);
+
+  char TempGameCodeDLLFilename[] = "handmade_temp.dll";
+  char TempGameCodeDLLFullPath[MAX_PATH];
+  CatString(OnePastLastSlash - EXEFileName,
+            EXEFileName,
+            sizeof(TempGameCodeDLLFilename),
+            TempGameCodeDLLFilename,
+            sizeof(TempGameCodeDLLFullPath),
+            TempGameCodeDLLFullPath);
+
   LARGE_INTEGER PerfCountFrequencyResult;
   QueryPerformanceFrequency(&PerfCountFrequencyResult);
   GlobalPerfCountFrequencyPerSecond = PerfCountFrequencyResult.QuadPart;
@@ -751,16 +801,19 @@ int WINAPI WinMain(HINSTANCE Instance,
       bool32_t SoundIsValid = false;
       // the RDTSC is an instruction that provides cpu cycle count in
       // currenttime.
-      win32_game_code Game = Win32LoadGameCode();
-      uint32_t LoadCounter = 0;
+
+      win32_game_code Game =
+          Win32LoadGameCode(SourceGameCodeDLLFullPath, TempGameCodeDLLFullPath);
 
       uint64_t LastCyclesCount = __rdtsc();
       while (GlobalRunning) {
 
-        if (LoadCounter++ > 100) {
+        FILETIME NEWDLLWriteTime =
+            Win32GetLastWriteTime(SourceGameCodeDLLFullPath);
+        if (CompareFileTime(&NEWDLLWriteTime, &Game.DLLLastWriteTime) != 0) {
           Win32UnloadGameCode(&Game);
-          Game = Win32LoadGameCode();
-          LoadCounter = 0;
+          Game = Win32LoadGameCode(SourceGameCodeDLLFullPath,
+                                   TempGameCodeDLLFullPath);
         }
         game_controller_input *OldKeyboardController =
             GetController(OldInput, 0);
