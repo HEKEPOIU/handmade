@@ -43,9 +43,10 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 // -- Game layers
 struct game_offscreen_buffer {
   void *Memory;
-  int Width;
-  int Height;
-  int Pitch;
+  int32_t Width;
+  int32_t Height;
+  int32_t Pitch;
+  int32_t BytesPerPixel;
 };
 struct game_sound_output_buffer {
   int32_t SamplePerSecond;
@@ -100,6 +101,9 @@ struct game_state {
   int32_t ToneHz;
 
   real32_t tSine;
+  int32_t PlayerX;
+  int32_t PlayerY;
+  real32_t tJump;
 };
 
 struct game_memory {
