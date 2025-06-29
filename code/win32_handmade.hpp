@@ -50,12 +50,17 @@ struct win32_game_code {
   bool32_t IsValid;
 };
 
+// NOTE: the MAX_PATH are not actuall MaxPath anymore,
+//       should use other way to ship in the actual code.
+#define WIN32_STATE_FILE_NAME_COUNT MAX_PATH
 struct win32_state {
   uint64_t TotalSize;
-  void* GameMemoryBlock;
+  void *GameMemoryBlock;
   HANDLE RecordingHandle;
   int32_t InputRecordingIndex;
 
   HANDLE PlaybackHandle;
   int32_t InputPlayingIndex;
+  char EXEFileName[WIN32_STATE_FILE_NAME_COUNT];
+  char *OnePastLastSlash;
 };

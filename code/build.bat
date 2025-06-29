@@ -1,7 +1,7 @@
 @echo off
 
 
-set CommonCompilerFlags=/MT /nologo /EHa- /GR- /Gm- /Od /Oi /WX /W4 /wd4201 /wd4100 /wd4189^
+set CommonCompilerFlags=/MTd /nologo /EHa- /GR- /Gm- /Od /Oi /WX /W4 /wd4201 /wd4100 /wd4189^
           -DHANDMADE_SLOW=1 -DHANDMADE_INTERNAL=1 -DHANDMADE_WIN32=1 /std:c++20 /Z7 /FC /Fm
 set CommonLinkerFlags= /incremental:no /OPT:REF User32.lib Gdi32.lib Winmm.lib
 
@@ -33,7 +33,7 @@ pushd ..\build
 :: LD = Create DLL, also pass /DLL to Linker, and it implies /MT.
 del handmade*.pdb
 cl %CommonCompilerFlags% "..\code\handmade.cpp" /LD /link^
-    /incremental:no /PDB:"handmade.%time:~-11,2%_%time:~-8,2%_%time:~-5,2%".pdb^
+    /incremental:no /PDB:"handmade_%random%".pdb^
     /EXPORT:GameUpdateAndRender /EXPORT:GameGetSoundSample
 
 if errorlevel 1 (
