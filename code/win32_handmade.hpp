@@ -28,7 +28,6 @@ struct win32_sound_output {
   int32_t BytePerSample;
   DWORD SecondaryBufferSize;
   DWORD SafetyBytes;
-  int32_t LatencySampleCount;
 };
 
 struct win32_debug_time_marker {
@@ -53,9 +52,17 @@ struct win32_game_code {
 // NOTE: the MAX_PATH are not actuall MaxPath anymore,
 //       should use other way to ship in the actual code.
 #define WIN32_STATE_FILE_NAME_COUNT MAX_PATH
+struct win32_replay_buffer {
+  HANDLE FileHandle;
+  HANDLE MemoryMap;
+  char Filename[WIN32_STATE_FILE_NAME_COUNT];
+  void *MemoryBlock;
+};
 struct win32_state {
   uint64_t TotalSize;
   void *GameMemoryBlock;
+  win32_replay_buffer ReplayBuffer[4];
+
   HANDLE RecordingHandle;
   int32_t InputRecordingIndex;
 
