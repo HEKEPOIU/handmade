@@ -97,7 +97,7 @@ struct game_input {
   int32_t MouseX;
   int32_t MouseY;
   int32_t MouseZ;
-  real32_t SecondsToAdvanceOverUpdate;
+  real32_t DeltaTime;
   game_controller_input Controllers[5];
 };
 
@@ -107,6 +107,8 @@ inline game_controller_input *GetController(game_input *Input, uint32_t Index) {
 }
 
 struct game_state {
+  real32_t PlayerX;
+  real32_t PlayerY;
 };
 
 struct game_memory {

@@ -851,14 +851,14 @@ int WINAPI WinMain(HINSTANCE Instance,
   WindowsClass.lpszClassName = "HandmadeHeroWindowsClass";
 
   if (RegisterClass(&WindowsClass)) {
-    HWND Window = CreateWindowEx(0, //WS_EX_TOPMOST | WS_EX_LAYERED,
+    HWND Window = CreateWindowEx(0, // WS_EX_TOPMOST | WS_EX_LAYERED,
                                  WindowsClass.lpszClassName,
                                  "Handmade Hero",
                                  WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                                  200,
                                  100,
-                                 1280,
-                                 760,
+                                 960,
+                                 580,
                                  0,
                                  0,
                                  Instance,
@@ -875,7 +875,7 @@ int WINAPI WinMain(HINSTANCE Instance,
 
       if (Win32RefreshRate > 1) { MonitorRefreshRate = Win32RefreshRate; }
       // Currently use software rendering.
-      real32_t GameUpdateHz = MonitorRefreshRate / 2.f;
+      real32_t GameUpdateHz = MonitorRefreshRate / 1.f;
 
       real32_t TargetSecondsPerFrame = 1.f / GameUpdateHz;
       win32_sound_output SoundOutput{
@@ -976,7 +976,6 @@ int WINAPI WinMain(HINSTANCE Instance,
       game_input Input[2]{};
       game_input *OldInput = &Input[0];
       game_input *NewInput = &Input[1];
-      NewInput->SecondsToAdvanceOverUpdate = TargetSecondsPerFrame;
 
       LARGE_INTEGER LastCounter = Win32GetWallClock();
       LARGE_INTEGER FlipWallClock = Win32GetWallClock();
@@ -995,7 +994,7 @@ int WINAPI WinMain(HINSTANCE Instance,
 
       uint64_t LastCyclesCount = __rdtsc();
       while (GlobalRunning) {
-
+        NewInput->DeltaTime = TargetSecondsPerFrame;
         FILETIME NEWDLLWriteTime =
             Win32GetLastWriteTime(SourceGameCodeDLLFullPath);
         if (CompareFileTime(&NEWDLLWriteTime, &Game.DLLLastWriteTime) != 0) {
