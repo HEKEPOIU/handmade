@@ -13,6 +13,8 @@
 #define Terabytes(Value) (Gigabytes(Value) * 1024LL)
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
+#define Max(a, b) ((a) > (b) ? (a) : (b))
+#define Min(a, b) ((a) < (b) ? (a) : (b))
 
 inline uint32_t SafeTruncateUInt32(uint64_t Value) {
   Assert(Value <= UINT32_MAX);
@@ -95,6 +97,7 @@ struct game_input {
   int32_t MouseX;
   int32_t MouseY;
   int32_t MouseZ;
+  real32_t SecondsToAdvanceOverUpdate;
   game_controller_input Controllers[5];
 };
 
@@ -104,14 +107,6 @@ inline game_controller_input *GetController(game_input *Input, uint32_t Index) {
 }
 
 struct game_state {
-  int32_t BlueOffset;
-  int32_t GreenOffset;
-  int32_t ToneHz;
-
-  real32_t tSine;
-  int32_t PlayerX;
-  int32_t PlayerY;
-  real32_t tJump;
 };
 
 struct game_memory {

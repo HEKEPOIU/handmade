@@ -842,7 +842,7 @@ int WINAPI WinMain(HINSTANCE Instance,
   Win32LoadXInput();
   WNDCLASS WindowsClass{};
 
-  Win32ResizeDIBSection(&GlobalBackbuffer, 1280, 720);
+  Win32ResizeDIBSection(&GlobalBackbuffer, 960, 540);
 
   WindowsClass.style = CS_HREDRAW | CS_VREDRAW;
   // NOTE: Register Windows Message Handler.
@@ -851,7 +851,7 @@ int WINAPI WinMain(HINSTANCE Instance,
   WindowsClass.lpszClassName = "HandmadeHeroWindowsClass";
 
   if (RegisterClass(&WindowsClass)) {
-    HWND Window = CreateWindowEx(0, // WS_EX_TOPMOST | WS_EX_LAYERED,
+    HWND Window = CreateWindowEx(0, //WS_EX_TOPMOST | WS_EX_LAYERED,
                                  WindowsClass.lpszClassName,
                                  "Handmade Hero",
                                  WS_OVERLAPPEDWINDOW | WS_VISIBLE,
@@ -976,6 +976,7 @@ int WINAPI WinMain(HINSTANCE Instance,
       game_input Input[2]{};
       game_input *OldInput = &Input[0];
       game_input *NewInput = &Input[1];
+      NewInput->SecondsToAdvanceOverUpdate = TargetSecondsPerFrame;
 
       LARGE_INTEGER LastCounter = Win32GetWallClock();
       LARGE_INTEGER FlipWallClock = Win32GetWallClock();
