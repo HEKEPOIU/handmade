@@ -15,6 +15,7 @@
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 #define Max(a, b) ((a) > (b) ? (a) : (b))
 #define Min(a, b) ((a) < (b) ? (a) : (b))
+#define Clamp(v, a, b) (Max(Min((v), (b)), (a)))
 
 inline uint32_t SafeTruncateUInt32(uint64_t Value) {
   Assert(Value <= UINT32_MAX);
@@ -106,10 +107,6 @@ inline game_controller_input *GetController(game_input *Input, uint32_t Index) {
   return &Input->Controllers[Index];
 }
 
-struct game_state {
-  real32_t PlayerX;
-  real32_t PlayerY;
-};
 
 struct game_memory {
   bool32_t IsInitialized;
@@ -139,4 +136,28 @@ GAME_GET_SOUND_SAMPLE(GameGetSoundSampleStub) {}
 struct game_code {
   game_update_and_render *UpdateAndRender;
   game_get_sound_sample *GetSoundSample;
+};
+
+struct tile_map {
+  int32_t StartX;
+  int32_t StartY;
+  uint32_t CountX;
+  uint32_t CountY;
+  uint32_t TileHeight;
+  uint32_t TileWidth;
+  uint32_t *TileMap;
+};
+
+struct tile_world {
+  uint32_t TileMapCountX;
+  uint32_t TileMapCountY;
+
+  tile_map *TileMaps;
+};
+
+struct game_state {
+  real32_t PlayerWorldX;
+  real32_t PlayerWorldY;
+  uint32_t CurrentPlayerWorldIndexX;
+  uint32_t CurrentPlayerWorldIndexY;
 };

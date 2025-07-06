@@ -330,9 +330,25 @@ internal void Win32DisplayBufferInWindow(win32_offscreen_buffer *buffer,
                                          HDC DeviceContext,
                                          int WindowWidth,
                                          int WindowHeight) {
+  int32_t OffsetX = 10;
+  int32_t OffsetY = 10;
+  PatBlt(DeviceContext, 0, 0, WindowWidth, OffsetY, BLACKNESS);
+  PatBlt(DeviceContext, 0, 0, OffsetX, WindowHeight, BLACKNESS);
+  PatBlt(DeviceContext,
+         0,
+         OffsetY + buffer->Height,
+         WindowWidth,
+         WindowHeight - buffer->Height - OffsetY,
+         BLACKNESS);
+  PatBlt(DeviceContext,
+         OffsetX + buffer->Width,
+         0,
+         WindowWidth - buffer->Width - OffsetX,
+         WindowHeight,
+         BLACKNESS);
   // clang-format off
   StretchDIBits(DeviceContext,
-                0, 0, buffer->Width, buffer->Height,
+                OffsetX, OffsetY, buffer->Width, buffer->Height,
                 0, 0, buffer->Width, buffer->Height,
                 buffer->Memory,
                 &buffer->Info,
@@ -857,8 +873,8 @@ int WINAPI WinMain(HINSTANCE Instance,
                                  WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                                  200,
                                  100,
-                                 960,
-                                 580,
+                                 1000,
+                                 600,
                                  0,
                                  0,
                                  Instance,
