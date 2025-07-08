@@ -1,6 +1,5 @@
 @echo off
 
-
 set CommonCompilerFlags=/MTd /nologo /EHa- /GR- /Gm- /Od /Oi /WX /W4 /wd4505 /wd4201 /wd4100 /wd4189^
           -DHANDMADE_SLOW=1 -DHANDMADE_INTERNAL=1 -DHANDMADE_WIN32=1 /std:c++20 /Z7 /FC /Fm
 set CommonLinkerFlags= /incremental:no /OPT:REF User32.lib Gdi32.lib Winmm.lib
@@ -31,10 +30,15 @@ pushd ..\build
 :: OPT:REF = Remove unused function or data,
 ::           other have OPT:NOREF Don't remove unused function or data.
 :: LD = Create DLL, also pass /DLL to Linker, and it implies /MT.
+set handmade_random="handmade_%random%"
+
 del handmade*.pdb
+del handmade*.rdi
 cl %CommonCompilerFlags% "..\code\handmade.cpp" /LD /link^
-    /incremental:no /PDB:"handmade_%random%".pdb^
+    /incremental:no /PDB:%handmade_random%.pdb^
     /EXPORT:GameUpdateAndRender /EXPORT:GameGetSoundSample
+
+radbin --rdi "%handmade_random%.pdb"
 
 if errorlevel 1 (
     echo [ERROR] Compilation failed when compiling handmade.cpp
@@ -43,12 +47,14 @@ if errorlevel 1 (
 )
 
 cl %CommonCompilerFlags% "..\code\win32_handmade.cpp" /link %CommonLinkerFlags%
+radbin --rdi "win32_handmade.exe"
 
 if errorlevel 1 (
     echo [ERROR] Compilation failed when compiling win32_handmade.cpp
     popd
     exit /b 1
 )
+
 
 echo [INFO] Compilation succeeded.
 popd

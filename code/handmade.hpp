@@ -139,16 +139,17 @@ struct game_code {
 };
 
 struct tile_map {
+  uint32_t *TileMap;
+};
+
+struct tile_world {
   int32_t StartX;
   int32_t StartY;
   uint32_t CountX;
   uint32_t CountY;
   uint32_t TileHeight;
   uint32_t TileWidth;
-  uint32_t *TileMap;
-};
 
-struct tile_world {
   uint32_t TileMapCountX;
   uint32_t TileMapCountY;
 

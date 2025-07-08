@@ -867,7 +867,7 @@ int WINAPI WinMain(HINSTANCE Instance,
   WindowsClass.lpszClassName = "HandmadeHeroWindowsClass";
 
   if (RegisterClass(&WindowsClass)) {
-    HWND Window = CreateWindowEx(0, // WS_EX_TOPMOST | WS_EX_LAYERED,
+    HWND Window = CreateWindowEx(0, //WS_EX_TOPMOST | WS_EX_LAYERED,
                                  WindowsClass.lpszClassName,
                                  "Handmade Hero",
                                  WS_OVERLAPPEDWINDOW | WS_VISIBLE,
@@ -927,7 +927,7 @@ int WINAPI WinMain(HINSTANCE Instance,
 
       game_memory GameMemory{
           .PermanentStorageSize = Megabytes(64),
-          .TransientStorageSize = Gigabytes(1),
+          .TransientStorageSize = Megabytes(100),
           .DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile,
           .DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory,
           .DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile,
